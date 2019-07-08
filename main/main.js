@@ -4,7 +4,6 @@ function printReceipt(tags) {
   const countedTags = countTags(tags);
   const allItems = loadAllItems();
   const countedItems = getItems(countedTags, allItems);
-  console.info(countedItems);
   const receiptDetail = getReceiptDetail(countedItems);
 
   const result = `***<没钱赚商店>收据***
@@ -19,43 +18,55 @@ ${receiptDetail}
 
 function countTags(tags) {
   let result = [];
-  tags.forEach(tag => {
-    const matchedIndex = findMatchedIndex(result, tag);
-    if (matchedIndex > -1) {
-      const matched = result[matchedIndex];
-      result[matchedIndex] = {
-        barcode: matched.barcode,
-        count: matched.count + 1
-      };
-    } else {
-      result.push({ barcode: tag, count: 1 });
-    }
-  });
-  result = handleSpecial(result);
+  for (let index = 0; index < tags.length; index++) {
+    const tag = tags[index];
+    result = transform(result, tag);
+  }
   return result;
 }
 
-function findMatchedIndex(collection, barcode) {
-  return collection.findIndex(item => item.barcode === barcode);
+function transform(collection, barcode) {
+  let result = [...collection];
+  if (hasDash(barcode)) {
+    const splited = barcode.split("-");
+    const splitedBarcdoe = splited[0];
+    const count = parseFloat(splited[1]);
+    result = add(result, splitedBarcdoe, count);
+  } else {
+    result = add(result, barcode, 1);
+  }
+
+  return result;
 }
 
-function handleSpecial(countedTags) {
-  return countedTags.map(tag => {
-    const barcode = tag.barcode;
-    if (hasDash(barcode)) {
-      return countDashTag(barcode);
+function add(collection, barcode, count) {
+  let result = [...collection];
+  const matchedIndex = getIndex(result, barcode);
+
+  if (matchedIndex > -1) {
+    let matchedItem = result[matchedIndex];
+    result[matchedIndex] = {
+      ...matchedItem,
+      count: matchedItem.count + count
+    };
+  } else {
+    result.push({ barcode, count });
+  }
+  return result;
+}
+
+function getIndex(collection, barcode) {
+  for (let index = 0; index < collection.length; index++) {
+    const element = collection[index];
+    if (element.barcode === barcode) {
+      return index;
     }
-    return tag;
-  });
+  }
+  return -1;
 }
 
 function hasDash(barcode) {
   return barcode.indexOf("-") > -1;
-}
-
-function countDashTag(barcode) {
-  const splited = barcode.split("-");
-  return { barcode: splited[0], count: parseFloat(splited[1]) };
 }
 
 function getItems(countedTags, allItems) {
@@ -66,11 +77,58 @@ function getItems(countedTags, allItems) {
 }
 
 function findMatchedItem(allItems, barcode) {
-  return allItems.find(item => item.barcode === barcode);
+  for (let index = 0; index < allItems.length; index++) {
+    const item = allItems[index];
+    if (item.barcode === barcode) {
+      return item;
+    }
+  }
+  return null;
 }
 
 function getReceiptDetail(countedItems) {
-  return `名称：雪碧，数量：5瓶，单价：3.00(元)，小计：12.00(元)
-名称：荔枝，数量：2.5斤，单价：15.00(元)，小计：37.50(元)
-名称：方便面，数量：3袋，单价：4.50(元)，小计：9.00(元)`;
+  const itemsWithSubtotal = calculateSubTotal(countedItems);
+  let result = "";
+  for (let index = 0; index < itemsWithSubtotal.length; index++) {
+    const item = itemsWithSubtotal[index];
+    result += getLine(item) + (index === countedItems.length - 1 ? "" : "\n");
+  }
+  return result;
+}
+
+function calculateSubTotal(countedItems) {
+  let result = [];
+  for (let index = 0; index < countedItems.length; index++) {
+    const item = countedItems[index];
+    const subTotal = calculateItemSubTotal(item);
+    result.push({ ...item, subTotal: subTotal.toFixed(2) });
+  }
+  return result;
+}
+
+function getLine(item) {
+  return `名称：${item.name}，数量：${item.count}${
+    item.unit
+  }，单价：${item.price.toFixed(2)}(元)，小计：${item.subTotal}(元)`;
+}
+
+function calculateItemSubTotal(item) {
+  let subTotal = item.price * item.count;
+  const promotions = loadPromotions();
+  for (let index = 0; index < promotions.length; index++) {
+    const promotion = promotions[index];
+    if (promotion.barcodes.indexOf(item.barcode) > -1) {
+      subTotal = handlePromotion(promotion, item);
+    }
+  }
+
+  return subTotal;
+}
+
+function handlePromotion(promotion, item) {
+  const count = item.count;
+  if (promotion.type === "BUY_TWO_GET_ONE_FREE") {
+    return item.price * (count - Math.floor(count / 3));
+  }
+  return item.price * count;
 }
