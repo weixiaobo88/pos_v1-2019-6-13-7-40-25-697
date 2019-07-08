@@ -4,6 +4,7 @@ function printReceipt(tags) {
   const countedTags = countTags(tags);
   const allItems = loadAllItems();
   const countedItems = getItems(countedTags, allItems);
+  console.info(countedItems);
   const receiptDetail = getReceiptDetail(countedItems);
 
   const result = `***<没钱赚商店>收据***
@@ -31,7 +32,6 @@ function countTags(tags) {
     }
   });
   result = handleSpecial(result);
-  console.info(result);
   return result;
 }
 
@@ -58,7 +58,16 @@ function countDashTag(barcode) {
   return { barcode: splited[0], count: parseFloat(splited[1]) };
 }
 
-function getItems(countedTags, allItems) {}
+function getItems(countedTags, allItems) {
+  return countedTags.map(item => ({
+    ...item,
+    ...findMatchedItem(allItems, item.barcode)
+  }));
+}
+
+function findMatchedItem(allItems, barcode) {
+  return allItems.find(item => item.barcode === barcode);
+}
 
 function getReceiptDetail(countedItems) {
   return `名称：雪碧，数量：5瓶，单价：3.00(元)，小计：12.00(元)
